@@ -8,7 +8,7 @@ from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.storage.memory import MemoryStorage
 
-BOT_TOKEN = "8628398625:AAH8_w55apqN26B_ZOm366ZEvt8uPyzG0rE"
+BOT_TOKEN = "BOT_TOKEN"
 CHANNEL_ID = -1002499515385
 ADMIN_ID = 8756799219
 
