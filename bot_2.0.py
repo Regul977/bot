@@ -8,9 +8,9 @@ from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.storage.memory import MemoryStorage
 
-BOT_TOKEN = "BOT_TOKEN"
+BOT_TOKEN = "ТВОЙ_ТОКЕН"
 CHANNEL_ID = -1002499515385
-ADMIN_ID = 8756799219
+ADMIN_ID = ТВОЙ_ID
 
 logging.basicConfig(level=logging.INFO)
 
@@ -48,25 +48,46 @@ def valid_op(text: str) -> bool:
 
 @dp.message(Command("start"))
 async def cmd_start(message: types.Message, state: FSMContext):
-    if is_admin(message.from_user.id):
+    user_id = message.from_user.id
+
+    # АДМИН — может тоже зарегаться
+    if is_admin(user_id):
+        if not is_registered(user_id):
+            await state.set_state(RegState.waiting_nickname)
+            await message.answer(
+                "👑 <b>Добро пожаловать, Админ!</b>\n"
+                "─────────────\n\n"
+                "Сначала создай себе профиль, чтобы посты\n"
+                "выходили с твоей кличкой и ОП.\n\n"
+                "─────────────\n"
+                "📝 <b>Шаг 1/2:</b> введи свою кличку:",
+                parse_mode="HTML",
+            )
+            return
+
+        nick = user_profiles[user_id]['nickname']
+        op = user_profiles[user_id]['op']
         await message.answer(
-            "👑 <b>Добро пожаловать, Админ!</b>\n"
+            f"👑 <b>Админ: {nick}</b>\n"
             "─────────────\n\n"
-            "🛠 <b>Твои возможности:</b>\n\n"
-            "📢 <b>Обычный пост</b> — просто отправь сообщение\n"
-            "   <i>Появится превью с кнопками</i>\n\n"
-            "🔍 <b>/search</b> — заявка на поиск человека\n"
-            "   <i>Заполняется в 5 шагов</i>\n\n"
-            "👤 <b>/profile</b> — твой профиль\n\n"
+            f"📝 Кличка: <b>{nick}</b>\n"
+            f"💬 ОП: <b>{op}</b>\n\n"
             "─────────────\n"
-            "💡 Все заявки от юзеров приходят тебе на модерацию",
+            "🛠 <b>Что ты можешь:</b>\n\n"
+            "📢 <b>Отправить пост</b> — просто напиши сообщение\n"
+            "🔍 <b>/search</b> — заявка на поиск человека\n"
+            "⏰ <b>/remind</b> — напоминание и пример поста\n"
+            "👤 <b>/profile</b> — изменить кличку или ОП\n\n"
+            "─────────────\n"
+            "💡 Все посты юзеров приходят тебе на модерацию",
             parse_mode="HTML",
         )
         return
 
-    if is_registered(message.from_user.id):
-        nick = user_profiles[message.from_user.id]['nickname']
-        op = user_profiles[message.from_user.id]['op']
+    # ЮЗЕР
+    if is_registered(user_id):
+        nick = user_profiles[user_id]['nickname']
+        op = user_profiles[user_id]['op']
         await message.answer(
             f"👋 <b>С возвращением, {nick}!</b>\n"
             "─────────────\n\n"
@@ -75,8 +96,7 @@ async def cmd_start(message: types.Message, state: FSMContext):
             "─────────────\n"
             "🛠 <b>Что ты можешь:</b>\n\n"
             "📢 <b>Отправить пост</b> — просто напиши сообщение\n"
-            "   <i>Оно уйдёт на модерацию админу</i>\n\n"
-            "🔍 <b>/search</b> — объявление о поиске человека\n\n"
+            "🔍 <b>/search</b> — объявление о поиске человека\n"
             "👤 <b>/profile</b> — изменить кличку или ОП\n\n"
             "─────────────\n"
             "💡 Публикуй анонимно — никто не узнает, кто ты",
@@ -98,6 +118,43 @@ async def cmd_start(message: types.Message, state: FSMContext):
         "─────────────\n"
         "📝 <b>Шаг 1/2:</b> введи свою кличку\n\n"
         "<i>Например: Тень, Аноним, Ночной гость</i>",
+        parse_mode="HTML",
+    )
+
+
+# ==================== КОМАНДА /remind (только админ) ====================
+
+@dp.message(Command("remind"))
+async def cmd_remind(message: types.Message):
+    if not is_admin(message.from_user.id):
+        await message.answer("⛔ Команда только для админа.")
+        return
+
+    nick = user_profiles.get(message.from_user.id, {}).get("nickname", "Админ")
+    op = user_profiles.get(message.from_user.id, {}).get("op", "?")
+
+    await message.answer(
+        "⏰ <b>Напоминание админу</b>\n"
+        "─────────────\n\n"
+        f"📝 Твой профиль: <b>{nick}</b> | ОП: <b>{op}</b>\n\n"
+        "─────────────\n"
+        "💡 <b>Не забудь про важное:</b>\n\n"
+        "1️⃣ Все посты от юзеров приходят <b>тебе в личку</b>\n"
+        "   <i>Только ты решаешь — публиковать или нет</i>\n\n"
+        "2️⃣ Убедись, что бот <b>админ</b> в канале\n"
+        "   <i>Нужно право «Публикация сообщений»</i>\n\n"
+        "3️⃣ Проверь бота — <b>онлайн ли</b> он\n"
+        "   <i>Напиши ему /start</i>\n\n"
+        "─────────────\n"
+        "📋 <b>Пример поста:</b>\n\n"
+        "<i>Вчера в 18:30 возле ТЦ «Никулино» пропала девушка. Одета в синюю куртку, джинсы, белые кроссовки. Если видели — напишите в комментарии.</i>\n\n"
+        "─────────────\n"
+        "📌 <b>Как опубликовать:</b>\n\n"
+        "• Отправь мне <b>текст</b> сообщения → я покажу превью\n"
+        "• Нажми <b>✅ Опубликовать</b> → пост уйдёт в канал\n"
+        "• Или используй <b>/search</b> для структурированной заявки\n\n"
+        "─────────────\n"
+        "💬 <i>Все посты публикуются через тебя — как и задумано</i>",
         parse_mode="HTML",
     )
 
@@ -124,6 +181,22 @@ async def reg_op(message: types.Message, state: FSMContext):
         "op": message.text.strip(),
     }
     await state.clear()
+
+    if is_admin(message.from_user.id):
+        await message.answer(
+            f"✅ <b>Профиль админа создан!</b>\n\n"
+            f"📝 Кличка: <b>{user_profiles[message.from_user.id]['nickname']}</b>\n"
+            f"💬 ОП: <b>{user_profiles[message.from_user.id]['op']}</b>\n\n"
+            "─────────────\n"
+            "Теперь можешь:\n\n"
+            "📢 Отправить пост — уйдёт в канал после подтверждения\n"
+            "🔍 /search — заявка на поиск человека\n"
+            "⏰ /remind — напоминание и пример поста\n"
+            "👤 /profile — изменить профиль",
+            parse_mode="HTML",
+        )
+        return
+
     await message.answer(
         f"✅ <b>Готово!</b>\n\n"
         f"📝 Кличка: <b>{user_profiles[message.from_user.id]['nickname']}</b>\n"
@@ -139,9 +212,6 @@ async def reg_op(message: types.Message, state: FSMContext):
 
 @dp.message(Command("profile"))
 async def cmd_profile(message: types.Message, state: FSMContext):
-    if is_admin(message.from_user.id):
-        await message.answer("У админа нет профиля.")
-        return
     if not is_registered(message.from_user.id):
         await message.answer("Ты ещё не зарегистрирован. Напиши /start")
         return
@@ -176,8 +246,17 @@ async def edit_profile(callback: CallbackQuery, state: FSMContext):
 @dp.message(Command("search"))
 async def cmd_search(message: types.Message, state: FSMContext):
     if is_admin(message.from_user.id):
-        await message.answer("Админ и так видит заявки.")
+        if not is_registered(message.from_user.id):
+            await message.answer("Сначала /start — создай профиль.")
+            return
+        await state.set_state(SearchState.waiting_name)
+        await message.answer(
+            "🔍 <b>Заявка на поиск человека</b>\n\n"
+            "<b>Шаг 1/5:</b> Имя или кого ищем",
+            parse_mode="HTML",
+        )
         return
+
     if not is_registered(message.from_user.id):
         await message.answer("Сначала зарегистрируйся: /start")
         return
@@ -208,7 +287,7 @@ async def search_situation(message: types.Message, state: FSMContext):
         return
     await state.update_data(situation=message.text.strip())
     await state.set_state(SearchState.waiting_clothes)
-    await message.answer("<b>Шаг 3/5:</b> Во что был(а) одет(а)? (цвет, вещи, приметы):", parse_mode="HTML")
+    await message.answer("<b>Шаг 3/5:</b> Во что был(а) одет(а)?", parse_mode="HTML")
 
 
 @dp.message(SearchState.waiting_clothes)
@@ -218,7 +297,7 @@ async def search_clothes(message: types.Message, state: FSMContext):
         return
     await state.update_data(clothes=message.text.strip())
     await state.set_state(SearchState.waiting_location)
-    await message.answer("<b>Шаг 4/5:</b> Где видели в последний раз? (район, адрес, метро):", parse_mode="HTML")
+    await message.answer("<b>Шаг 4/5:</b> Где видели в последний раз?", parse_mode="HTML")
 
 
 @dp.message(SearchState.waiting_location)
@@ -292,7 +371,10 @@ async def finalize_search(message: types.Message, state: FSMContext):
         reply_markup=kb,
     )
 
-    await message.answer("✅ Заявка отправлена на модерацию.")
+    if is_admin(user_id):
+        await message.answer("✅ Заявка готова. Нажми ✅ Опубликовать в сообщении выше.")
+    else:
+        await message.answer("✅ Заявка отправлена на модерацию.")
 
 
 @dp.message(F.chat.type == "private", ~F.text.startswith("/"))
@@ -303,9 +385,18 @@ async def handle_post(message: types.Message, state: FSMContext):
 
     user_id = message.from_user.id
 
+    # АДМИН
     if is_admin(user_id):
+        author = user_profiles.get(user_id)
         preview = await message.copy_to(chat_id=message.chat.id)
-        drafts[preview.message_id] = {"type": "plain", "message": message, "author": None}
+
+        drafts[preview.message_id] = {
+            "type": "plain",
+            "message": message,
+            "author": author,
+            "user_id": user_id,
+        }
+
         kb = InlineKeyboardMarkup(inline_keyboard=[
             [
                 InlineKeyboardButton(text="✅ Опубликовать", callback_data=f"publish:{preview.message_id}"),
@@ -314,12 +405,13 @@ async def handle_post(message: types.Message, state: FSMContext):
         ])
         await bot.send_message(
             chat_id=message.chat.id,
-            text="📝 Предпросмотр выше (от админа). Опубликовать?",
+            text="📝 Предпросмотр выше. Опубликовать в канал?",
             reply_to_message_id=preview.message_id,
             reply_markup=kb,
         )
         return
 
+    # ЮЗЕР
     if not is_registered(user_id):
         await message.answer("Сначала зарегистрируйся: /start")
         return
@@ -449,7 +541,7 @@ async def cancel_post(callback: CallbackQuery):
     await callback.message.edit_text("❌ Публикация отклонена.")
     await callback.answer("Отклонено")
 
-    if draft and draft.get("user_id"):
+    if draft and draft.get("user_id") and draft["user_id"] != ADMIN_ID:
         try:
             await bot.send_message(chat_id=draft["user_id"], text="❌ Твой пост отклонён модератором.")
         except Exception:
