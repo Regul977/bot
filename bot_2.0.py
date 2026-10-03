@@ -10,7 +10,7 @@ from aiogram.fsm.storage.memory import MemoryStorage
 
 BOT_TOKEN = "ТВОЙ_ТОКЕН"
 CHANNEL_ID = -1002499515385
-ADMIN_ID = ТВОЙ_ID
+ADMIN_ID = 8756799219
 
 logging.basicConfig(level=logging.INFO)
 
@@ -46,11 +46,20 @@ def valid_op(text: str) -> bool:
     return bool(re.fullmatch(r"[1-4]", text.strip()))
 
 
+def is_nickname_taken(nickname: str, exclude_user_id: int = None) -> bool:
+    nick_lower = nickname.strip().lower()
+    for uid, profile in user_profiles.items():
+        if uid == exclude_user_id:
+            continue
+        if profile["nickname"].strip().lower() == nick_lower:
+            return True
+    return False
+
+
 @dp.message(Command("start"))
 async def cmd_start(message: types.Message, state: FSMContext):
     user_id = message.from_user.id
 
-    # АДМИН — может тоже зарегаться
     if is_admin(user_id):
         if not is_registered(user_id):
             await state.set_state(RegState.waiting_nickname)
@@ -84,7 +93,6 @@ async def cmd_start(message: types.Message, state: FSMContext):
         )
         return
 
-    # ЮЗЕР
     if is_registered(user_id):
         nick = user_profiles[user_id]['nickname']
         op = user_profiles[user_id]['op']
@@ -121,8 +129,6 @@ async def cmd_start(message: types.Message, state: FSMContext):
         parse_mode="HTML",
     )
 
-
-# ==================== КОМАНДА /remind (только админ) ====================
 
 @dp.message(Command("remind"))
 async def cmd_remind(message: types.Message):
@@ -164,7 +170,18 @@ async def reg_nickname(message: types.Message, state: FSMContext):
     if not message.text or len(message.text) > 32:
         await message.answer("Кличка должна быть текстом до 32 символов. Попробуй ещё раз:")
         return
-    await state.update_data(nickname=message.text.strip())
+
+    nick = message.text.strip()
+
+    if is_nickname_taken(nick, exclude_user_id=message.from_user.id):
+        await message.answer(
+            f"❌ Кличка <b>{nick}</b> уже занята.\n\n"
+            "Придумай другую:",
+            parse_mode="HTML",
+        )
+        return
+
+    await state.update_data(nickname=nick)
     await state.set_state(RegState.waiting_op)
     await message.answer("Шаг 2/2: введи свой ОП — число от 1 до 4:")
 
@@ -385,7 +402,6 @@ async def handle_post(message: types.Message, state: FSMContext):
 
     user_id = message.from_user.id
 
-    # АДМИН
     if is_admin(user_id):
         author = user_profiles.get(user_id)
         preview = await message.copy_to(chat_id=message.chat.id)
@@ -411,7 +427,6 @@ async def handle_post(message: types.Message, state: FSMContext):
         )
         return
 
-    # ЮЗЕР
     if not is_registered(user_id):
         await message.answer("Сначала зарегистрируйся: /start")
         return
